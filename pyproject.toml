@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "biocompute"
+version = "0.1.0"
+description = "London Biocompute client library"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [
+    { name = "London Biocompute" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "httpx>=0.27",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18",
+    "pytest>=9.0",
+    "pytest-httpx>=0.35",
+    "ruff>=0.14",
+]
+
+[tool.hatch.build.hooks.custom]
+
+[tool.mypy]
+strict = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["F", "B", "I"]
+ignore = ["E402", "E501", "E701", "B007"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
