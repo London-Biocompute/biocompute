@@ -1,100 +1,57 @@
-"""Tests for Well and wells() API."""
+"""Tests for the Well data builder."""
 
 from __future__ import annotations
 
-import pytest
-
-from biocompute.exceptions import BiocomputeError
-from biocompute.ops import FillOp, ImageOp, MixOp
-from biocompute.reagent import Reagent, red_dye
-from biocompute.trace import Trace, _current_trace
-from biocompute.well import Well, wells
-
-
-class TestWells:
-    """Tests for the wells() generator."""
-
-    def test_yields_correct_count(self) -> None:
-        trace = Trace()
-        _current_trace.set(trace)
-        ws = list(wells(count=8))
-        assert len(ws) == 8
-
-    def test_well_indices(self) -> None:
-        trace = Trace()
-        _current_trace.set(trace)
-        ws = list(wells(count=4))
-        assert [w.index for w in ws] == [0, 1, 2, 3]
-
-    def test_updates_well_count(self) -> None:
-        trace = Trace()
-        _current_trace.set(trace)
-        list(wells(count=8))
-        assert trace.well_count == 8
-
-    def test_raises_without_trace(self) -> None:
-        with pytest.raises(BiocomputeError, match="without an active Competition"):
-            list(wells(count=1))
+from biocompute.dye import Dye
+from biocompute.well import Well
 
 
 class TestWell:
-    """Tests for Well operations."""
+    def test_no_args_constructor(self) -> None:
+        well = Well()
+        assert well.ops == []
 
     def test_fill(self) -> None:
-        trace = Trace()
-        well = Well(0, trace)
-        well.fill(vol=50.0, reagent=red_dye)
+        well = Well()
+        well.fill(Dye.RED, 50.0)
 
-        assert len(trace.ops) == 1
-        op = trace.ops[0].op
-        assert isinstance(op, FillOp)
-        assert op.well_idx == 0
-        assert op.reagent is red_dye
-        assert op.volume_ul == 50.0
+        assert len(well.ops) == 1
+        assert well.ops[0] == {"op": "fill", "reagent": "red_dye", "volume": 50.0}
 
     def test_mix(self) -> None:
-        trace = Trace()
-        well = Well(0, trace)
+        well = Well()
         well.mix()
 
-        assert len(trace.ops) == 1
-        assert isinstance(trace.ops[0].op, MixOp)
-        assert trace.ops[0].op.well_idx == 0
+        assert len(well.ops) == 1
+        assert well.ops[0] == {"op": "mix"}
 
     def test_image(self) -> None:
-        trace = Trace()
-        well = Well(0, trace)
+        well = Well()
         well.image()
 
-        assert len(trace.ops) == 1
-        assert isinstance(trace.ops[0].op, ImageOp)
-        assert trace.ops[0].op.well_idx == 0
+        assert len(well.ops) == 1
+        assert well.ops[0] == {"op": "image"}
 
     def test_chaining(self) -> None:
-        trace = Trace()
-        well = Well(0, trace)
-        result = well.fill(vol=50.0, reagent=red_dye).mix().image()
+        well = Well()
+        result = well.fill(Dye.RED, 50.0).mix().image()
         assert result is well
-        assert len(trace.ops) == 3
+        assert len(well.ops) == 3
 
-    def test_custom_reagent(self) -> None:
-        trace = Trace()
-        well = Well(0, trace)
-        my_reagent = Reagent("custom_stuff")
-        well.fill(vol=10.0, reagent=my_reagent)
-
-        op = trace.ops[0].op
-        assert isinstance(op, FillOp)
-        assert op.reagent is my_reagent
+    def test_full_chain_ops(self) -> None:
+        well = Well().fill(Dye.RED, 50.0).fill(Dye.GREEN, 30.0).mix().image()
+        assert well.ops == [
+            {"op": "fill", "reagent": "red_dye", "volume": 50.0},
+            {"op": "fill", "reagent": "green_dye", "volume": 30.0},
+            {"op": "mix"},
+            {"op": "image"},
+        ]
 
     def test_multiple_wells_independent(self) -> None:
-        trace = Trace()
-        w0 = Well(0, trace)
-        w1 = Well(1, trace)
-        w0.fill(vol=50.0, reagent=red_dye)
-        w1.fill(vol=30.0, reagent=red_dye)
+        w0 = Well().fill(Dye.RED, 50.0)
+        w1 = Well().fill(Dye.BLUE, 30.0)
 
-        assert len(trace.ops) == 2
-        assert trace.ops[0].op.well_idx == 0
-        assert trace.ops[1].op.well_idx == 1
-        assert trace.well_count == 2
+        assert len(w0.ops) == 1
+        assert len(w1.ops) == 1
+        assert w0.ops[0]["reagent"] == "red_dye"
+        assert w1.ops[0]["reagent"] == "blue_dye"

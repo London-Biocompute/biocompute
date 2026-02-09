@@ -2,42 +2,40 @@
 
 from __future__ import annotations
 
-from typing import Iterator
+from typing import Any
 
-from biocompute.ops import FillOp, ImageOp, MixOp
-from biocompute.reagent import Reagent
-from biocompute.trace import Trace, get_current_trace
+from biocompute.dye import Dye
 
 
 class Well:
-    """A well that captures operations for submission to the competition server.
+    """A standalone data builder that records well operations.
 
-    Wells are created by the ``wells()`` generator. Operations like
-    ``fill()``, ``mix()``, and ``image()`` are recorded and sent to
-    the server when ``Competition.submit()`` is called.
+    Operations are stored as plain dicts and serialized by Client.submit().
+
+    Example::
+
+        well = Well().fill(Dye.RED, 50.0).fill(Dye.GREEN, 30.0).mix().image()
     """
 
-    def __init__(self, idx: int, trace: Trace) -> None:
-        self._idx = idx
-        self._trace = trace
-        self._trace.update_well_count(idx)
+    def __init__(self) -> None:
+        self._ops: list[dict[str, Any]] = []
 
     @property
-    def index(self) -> int:
-        """Return the well index."""
-        return self._idx
+    def ops(self) -> list[dict[str, Any]]:
+        """Return the recorded operations."""
+        return self._ops
 
-    def fill(self, vol: float, reagent: Reagent) -> Well:
-        """Fill this well with a volume of reagent.
+    def fill(self, dye: Dye, volume: float) -> Well:
+        """Fill this well with a volume of dye.
 
         Args:
-            vol: Volume in microliters.
-            reagent: The reagent to fill with.
+            dye: The dye to fill with.
+            volume: Volume in microliters.
 
         Returns:
             self for method chaining.
         """
-        self._trace.emit(FillOp(well_idx=self._idx, reagent=reagent, volume_ul=vol))
+        self._ops.append({"op": "fill", "reagent": dye.value, "volume": volume})
         return self
 
     def mix(self) -> Well:
@@ -46,7 +44,7 @@ class Well:
         Returns:
             self for method chaining.
         """
-        self._trace.emit(MixOp(well_idx=self._idx))
+        self._ops.append({"op": "mix"})
         return self
 
     def image(self) -> Well:
@@ -55,26 +53,5 @@ class Well:
         Returns:
             self for method chaining.
         """
-        self._trace.emit(ImageOp(well_idx=self._idx))
+        self._ops.append({"op": "image"})
         return self
-
-
-def wells(count: int = 96) -> Iterator[Well]:
-    """Yield wells for experiment definition.
-
-    Each call allocates the next *count* unique well indices,
-    so multiple ``wells()`` calls within the same trace produce
-    non-overlapping wells automatically.
-
-    Args:
-        count: Number of wells to use.
-
-    Yields:
-        Well objects with unique, auto-incrementing indices.
-
-    Raises:
-        BiocomputeError: If no Competition (or trace context) is active.
-    """
-    trace = get_current_trace()
-    for i in trace.allocate_wells(count):
-        yield Well(i, trace)

@@ -11,96 +11,66 @@ pip install biocompute
 ## Usage
 
 ```python
-from biocompute import Competition, wells, red_dye, green_dye, blue_dye
+from biocompute import Client, Well, Dye
 import numpy as np
 
-with Competition(api_key="sk_...", base_url="https://...") as comp:
+client = Client(api_key="sk_...", base_url="https://...")
 
-    # Experiments are just functions
-    def measure_color(well, r, g, b):
-        well.fill(vol=r, reagent=red_dye)
-        well.fill(vol=g, reagent=green_dye)
-        well.fill(vol=b, reagent=blue_dye)
-        well.mix()
-        well.image()
+# Get the target image
+target_b64 = client.get_target("challenge-id")
 
-    # Explore: grid search
-    n_wells = 25
-    explore = np.linspace([10, 10, 10], [100, 100, 100], num=n_wells)
+# Experiments are just functions
+def measure_color(r, g, b):
+    return (
+        Well()
+        .fill(Dye.RED, r)
+        .fill(Dye.GREEN, g)
+        .fill(Dye.BLUE, b)
+        .mix()
+        .image()
+    )
 
-    for well, (r, g, b) in zip(wells(count=n_wells), explore):
-        measure_color(well, r, g, b)
+# Explore: grid search
+params = np.linspace([10, 10, 10], [100, 100, 100], num=25)
+wells = [measure_color(r, g, b) for r, g, b in params]
+result = client.submit("challenge-id", wells)
 
-    results = comp.submit()
+# Check leaderboard
+for entry in client.leaderboard("challenge-id"):
+    print(f"#{entry.rank} {entry.user_name}: {entry.best_score}")
 
-    # Find best well
-    best_idx = max(range(len(results.wells)), key=lambda i: results.wells[i].score or 0)
-    best_params = explore[best_idx]
-
-with Competition(api_key="sk_...", base_url="https://...") as comp:
-
-    # Exploit: random samples around best hit
-    exploit = np.random.normal(best_params, scale=5, size=(n_wells, 3)).clip(0, 200)
-
-    for well, (r, g, b) in zip(wells(count=n_wells), exploit):
-        measure_color(well, r, g, b)
-
-    results = comp.submit()
 ```
 
-`wells(count=n)` gives you `n` wells. Pair with any sampling strategy via `zip`.
-
-Use `numpy`, `scipy.stats.qmc`, `pyDOE`, Ax, or any ML model to generate parameter arrays. The system doesn't care — it just sees wells and function calls.
+`Well()` records operations. `Client.submit()` sends them all in one request. Pair with any sampling strategy — `numpy`, `scipy`, Ax, or any ML model.
 
 ## API
 
-### `Competition(api_key, *, challenge_id="default", base_url, timeout=300.0)`
+### `Client(api_key, base_url, timeout=300.0)`
 
-Creates a competition session. Use as a context manager to ensure cleanup.
+Client for submitting jobs and retrieving results.
 
-- `submit()` — serialize recorded ops, POST to server, poll for results
-- `target()` — get the target image URL for this challenge
-- `leaderboard()` — get the public leaderboard
-- `close()` — release resources (called automatically by context manager)
+- `submit(challenge_id, wells)` — submit wells, poll for results, return `SubmissionResult`
+- `get_target(challenge_id)` — get the base64-encoded target image
+- `leaderboard(challenge_id)` — get `list[LeaderboardEntry]`
 
-### `wells(count=96)`
+### `Well()`
 
-Generator that yields `Well` objects. Must be called after creating a `Competition`.
+Records operations. Takes no arguments.
 
-### `Well`
-
-- `fill(vol, reagent)` — fill with a volume (microliters) of reagent
+- `fill(dye, volume)` — fill with a dye (microliters)
 - `mix()` — mix well contents
 - `image()` — capture an image of the well
 
-All methods return `self` for chaining: `well.fill(vol=50.0, reagent=red_dye).mix().image()`
+All methods return `self` for chaining: `Well().fill(Dye.RED, 50.0).mix().image()`
 
-### Reagents
+### `Dye`
 
-Built-in: `red_dye`, `green_dye`, `blue_dye`, `water`
+Enum of available dyes: `Dye.RED`, `Dye.GREEN`, `Dye.BLUE`
 
-Custom: `Reagent("my_reagent")`
+### `SubmissionResult`
 
-## Build & Publish
+Returned by `client.submit()`. Fields: `id`, `challenge_id`, `status`, `wells_count`, `result_data`, `error_message`, `raw`.
 
-```bash
-cd biocompute
+### `LeaderboardEntry`
 
-# Install dev dependencies
-uv sync
-
-# Run tests
-uv run pytest
-
-# Lint & type check
-uv run ruff check .
-uv run mypy src/biocompute
-
-# Build (leakage check runs automatically)
-uv run python -m build
-
-# Manual leakage check
-python check_leakage.py
-```
-
-The build includes an automatic leakage check (`hatch_build.py`) that scans for references to private internal modules and aborts if any are found.
+Returned by `client.leaderboard()`. Fields: `rank`, `user_name`, `wells_consumed`, `best_score`, `raw`.
