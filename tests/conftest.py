@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
+
 import pytest
 
 from biocompute.trace import _current_trace
 
 
 @pytest.fixture(autouse=True)
-def _clean_trace() -> None:  # type: ignore[misc]
+def _clean_trace() -> Generator[None]:
     """Ensure no trace leaks between tests."""
-    # Reset before test (in case a prior test leaked)
     token = _current_trace.set(None)
-    yield  # type: ignore[misc]
+    yield
     _current_trace.reset(token)

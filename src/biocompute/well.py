@@ -10,11 +10,11 @@ from biocompute.trace import Trace, get_current_trace
 
 
 class Well:
-    """A well that captures operations for submission to the competition server.
+    """A well that captures operations during protocol tracing.
 
-    Wells are created by the ``wells()`` generator. Operations like
-    ``fill()``, ``mix()``, and ``image()`` are recorded and sent to
-    the server when ``Competition.submit()`` is called.
+    Wells are created by the ``wells()`` generator inside a
+    ``@protocol`` function. Operations like ``fill()``, ``mix()``,
+    and ``image()`` are recorded into the protocol's trace.
     """
 
     def __init__(self, idx: int, trace: Trace) -> None:
@@ -73,7 +73,7 @@ def wells(count: int = 96) -> Iterator[Well]:
         Well objects with unique, auto-incrementing indices.
 
     Raises:
-        BiocomputeError: If no Competition (or trace context) is active.
+        BiocomputeError: If called outside of a @protocol function.
     """
     trace = get_current_trace()
     for i in trace.allocate_wells(count):

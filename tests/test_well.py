@@ -33,7 +33,7 @@ class TestWells:
         assert trace.well_count == 8
 
     def test_raises_without_trace(self) -> None:
-        with pytest.raises(BiocomputeError, match="without an active Competition"):
+        with pytest.raises(BiocomputeError, match="outside of a @protocol function"):
             list(wells(count=1))
 
 

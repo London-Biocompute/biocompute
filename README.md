@@ -1,6 +1,6 @@
 # biocompute
 
-London Biocompute client library.
+Protocol definition and submission library for London Biocompute.
 
 ## Install
 
@@ -10,42 +10,44 @@ pip install biocompute
 
 ## Usage
 
+Define a protocol with the `@protocol` decorator, then submit it with a `Client`:
+
 ```python
-from biocompute import Competition, wells, red_dye, green_dye, blue_dye
+from biocompute import protocol, wells, red_dye, green_dye, blue_dye, Client
 import numpy as np
 
-with Competition(api_key="sk_...", base_url="https://...") as comp:
+def measure_color(well, r, g, b):
+    well.fill(vol=r, reagent=red_dye)
+    well.fill(vol=g, reagent=green_dye)
+    well.fill(vol=b, reagent=blue_dye)
+    well.mix()
+    well.image()
 
-    # Experiments are just functions
-    def measure_color(well, r, g, b):
-        well.fill(vol=r, reagent=red_dye)
-        well.fill(vol=g, reagent=green_dye)
-        well.fill(vol=b, reagent=blue_dye)
-        well.mix()
-        well.image()
+# Explore: grid search
+n_wells = 25
+explore = np.linspace([10, 10, 10], [100, 100, 100], num=n_wells)
 
-    # Explore: grid search
-    n_wells = 25
-    explore = np.linspace([10, 10, 10], [100, 100, 100], num=n_wells)
-
+@protocol
+def explore_protocol():
     for well, (r, g, b) in zip(wells(count=n_wells), explore):
         measure_color(well, r, g, b)
 
-    results = comp.submit()
+client = Client(api_key="sk_...", base_url="https://...")
+results = client.submit(explore_protocol)
 
-    # Find best well
-    best_idx = max(range(len(results.wells)), key=lambda i: results.wells[i].score or 0)
-    best_params = explore[best_idx]
+# Find best well
+best_idx = max(range(len(results.wells)), key=lambda i: results.wells[i].score or 0)
+best_params = explore[best_idx]
 
-with Competition(api_key="sk_...", base_url="https://...") as comp:
+# Exploit: random samples around best hit
+exploit = np.random.normal(best_params, scale=5, size=(n_wells, 3)).clip(0, 200)
 
-    # Exploit: random samples around best hit
-    exploit = np.random.normal(best_params, scale=5, size=(n_wells, 3)).clip(0, 200)
-
+@protocol
+def exploit_protocol():
     for well, (r, g, b) in zip(wells(count=n_wells), exploit):
         measure_color(well, r, g, b)
 
-    results = comp.submit()
+results = client.submit(exploit_protocol)
 ```
 
 `wells(count=n)` gives you `n` wells. Pair with any sampling strategy via `zip`.
@@ -54,18 +56,39 @@ Use `numpy`, `scipy.stats.qmc`, `pyDOE`, Ax, or any ML model to generate paramet
 
 ## API
 
-### `Competition(api_key, *, challenge_id="default", base_url, timeout=300.0)`
+### `@protocol`
 
-Creates a competition session. Use as a context manager to ensure cleanup.
+Decorator that captures well operations into a `Protocol` object:
 
-- `submit()` — serialize recorded ops, POST to server, poll for results
+```python
+@protocol
+def my_experiment():
+    for well in wells(count=96):
+        well.fill(100.0, water)
+
+my_experiment.ops         # list of TracedOp
+my_experiment.well_count  # 96
+```
+
+Can also be called directly: `proto = protocol(some_function)`
+
+### `Client(api_key, *, challenge_id="default", base_url, timeout=300.0)`
+
+HTTP client for submitting protocols. Optionally use as a context manager:
+
+```python
+with Client(api_key="sk_...", base_url="https://...") as client:
+    result = client.submit(my_protocol)
+```
+
+- `submit(proto)` — submit a `Protocol`, poll for results
 - `target()` — get the target image URL for this challenge
 - `leaderboard()` — get the public leaderboard
 - `close()` — release resources (called automatically by context manager)
 
 ### `wells(count=96)`
 
-Generator that yields `Well` objects. Must be called after creating a `Competition`.
+Generator that yields `Well` objects. Must be called inside a `@protocol` function.
 
 ### `Well`
 
@@ -81,26 +104,11 @@ Built-in: `red_dye`, `green_dye`, `blue_dye`, `water`
 
 Custom: `Reagent("my_reagent")`
 
-## Build & Publish
+## Development
 
 ```bash
-cd biocompute
-
-# Install dev dependencies
-uv sync
-
-# Run tests
-uv run pytest
-
-# Lint & type check
-uv run ruff check .
-uv run mypy src/biocompute
-
-# Build (leakage check runs automatically)
-uv run python -m build
-
-# Manual leakage check
-python check_leakage.py
+uv sync              # Install dependencies
+uv run pytest        # Run tests
+uv run ruff check .  # Lint
+uv run mypy .        # Type check
 ```
-
-The build includes an automatic leakage check (`hatch_build.py`) that scans for references to private internal modules and aborts if any are found.

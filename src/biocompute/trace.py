@@ -1,4 +1,4 @@
-"""Trace context for capturing well operations."""
+"""Internal trace context for capturing well operations."""
 
 from __future__ import annotations
 
@@ -15,11 +15,11 @@ def get_current_trace() -> Trace:
     """Get the active trace context.
 
     Raises:
-        BiocomputeError: If no Competition is active.
+        BiocomputeError: If no active protocol trace context.
     """
     t = _current_trace.get()
     if t is None:
-        raise BiocomputeError("wells() called without an active Competition instance")
+        raise BiocomputeError("wells() called outside of a @protocol function")
     return t
 
 
