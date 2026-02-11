@@ -1,4 +1,4 @@
-"""Client for submitting protocols to a server."""
+"""Client for submitting experiments to a server."""
 
 from __future__ import annotations
 
@@ -6,14 +6,13 @@ import sys
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 
 from biocompute.exceptions import BiocomputeError
-from biocompute.ops import FillOp, ImageOp, MixOp
-from biocompute.protocol import Protocol
-from biocompute.trace import TracedOp
+from biocompute.ops import op_to_dict
+from biocompute.trace import TracedOp, collect_trace
 
 
 @dataclass
@@ -28,11 +27,10 @@ class SubmissionResult:
 
 
 class Client:
-    """Client for submitting protocols to a biocompute server.
+    """Client for submitting experiments to a biocompute server.
 
     Usage::
 
-        @protocol
         def my_experiment():
             for well in wells(count=96):
                 well.fill(100.0, water)
@@ -71,23 +69,24 @@ class Client:
     def __exit__(self, *_: object) -> None:
         self.close()
 
-    def submit(self, proto: Protocol) -> SubmissionResult:
-        """Submit a protocol and poll for results.
+    def submit(self, fn: Callable[[], None]) -> SubmissionResult:
+        """Submit an experiment function and poll for results.
 
         Args:
-            proto: A Protocol object from the @protocol decorator.
+            fn: A callable that defines well operations.
 
         Returns:
             SubmissionResult with job data.
         """
-        if not proto.ops:
-            raise BiocomputeError("Protocol has no operations. Call well.fill(), well.mix(), etc. in the protocol function.")
+        trace = collect_trace(fn)
+        if not trace.ops:
+            raise BiocomputeError("Experiment has no operations. Call well.fill(), well.mix(), etc. in the experiment function.")
 
         resp = self._client.post(
             f"{self._base_url}/api/v1/jobs",
             json={
                 "challenge_id": self._challenge_id,
-                "experiments": _to_experiments(proto.ops),
+                "experiments": _to_experiments(trace.ops),
             },
         )
         _check(resp)
@@ -129,7 +128,13 @@ class Client:
 
             status = data.get("status", "unknown")
             if status == "complete":
-                return _parse_result(data)
+                return SubmissionResult(
+                    job_id=data["id"],
+                    status=data["status"],
+                    result_data=data.get("result_data"),
+                    error=data.get("error_message"),
+                    raw=data,
+                )
             elif status == "failed":
                 raise BiocomputeError(f"Job {job_id} failed: {data.get('error_message', 'unknown error')}")
 
@@ -150,26 +155,9 @@ def _check(resp: httpx.Response) -> None:
     raise BiocomputeError(f"HTTP {resp.status_code}: {msg}")
 
 
-def _parse_result(data: dict[str, Any]) -> SubmissionResult:
-    """Parse a JobResponse into a SubmissionResult."""
-    return SubmissionResult(
-        job_id=data["id"],
-        status=data["status"],
-        result_data=data.get("result_data"),
-        error=data.get("error_message"),
-        raw=data,
-    )
-
-
 def _to_experiments(ops: list[TracedOp]) -> list[list[dict[str, Any]]]:
     """Group traced ops by well into experiments for the job server."""
     by_well: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for traced in ops:
-        op = traced.op
-        if isinstance(op, FillOp):
-            by_well[op.well_idx].append({"op": "fill", "reagent": op.reagent.name, "volume": op.volume_ul})
-        elif isinstance(op, MixOp):
-            by_well[op.well_idx].append({"op": "mix"})
-        elif isinstance(op, ImageOp):
-            by_well[op.well_idx].append({"op": "image"})
+        by_well[traced.op.well_idx].append(op_to_dict(traced.op))
     return [by_well[i] for i in sorted(by_well)]

@@ -33,7 +33,7 @@ class TestWells:
         assert trace.well_count == 8
 
     def test_raises_without_trace(self) -> None:
-        with pytest.raises(BiocomputeError, match="outside of a @protocol function"):
+        with pytest.raises(BiocomputeError, match="outside of client.submit"):
             list(wells(count=1))
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from typing import Callable
 
 from biocompute.exceptions import BiocomputeError
 from biocompute.ops import Op
@@ -15,12 +16,27 @@ def get_current_trace() -> Trace:
     """Get the active trace context.
 
     Raises:
-        BiocomputeError: If no active protocol trace context.
+        BiocomputeError: If no active trace context.
     """
     t = _current_trace.get()
     if t is None:
-        raise BiocomputeError("wells() called outside of a @protocol function")
+        raise BiocomputeError("wells() called outside of client.submit()")
     return t
+
+
+def collect_trace(fn: Callable[[], None]) -> Trace:
+    """Execute a function and collect its trace.
+
+    Sets the ContextVar that wells() reads so the standard
+    Well API works inside the function.
+    """
+    trace = Trace()
+    token = _current_trace.set(trace)
+    try:
+        fn()
+    finally:
+        _current_trace.reset(token)
+    return trace
 
 
 @dataclass

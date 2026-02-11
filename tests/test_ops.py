@@ -12,17 +12,17 @@ class TestOpToDict:
     def test_fill_op(self) -> None:
         op = FillOp(well_idx=0, reagent=red_dye, volume_ul=50.0)
         d = op_to_dict(op)
-        assert d == {"type": "fill", "well_idx": 0, "reagent": "red_dye", "volume_ul": 50.0}
+        assert d == {"op": "fill", "reagent": "red_dye", "volume": 50.0}
 
     def test_mix_op(self) -> None:
         op = MixOp(well_idx=3)
         d = op_to_dict(op)
-        assert d == {"type": "mix", "well_idx": 3}
+        assert d == {"op": "mix"}
 
     def test_image_op(self) -> None:
         op = ImageOp(well_idx=7)
         d = op_to_dict(op)
-        assert d == {"type": "image", "well_idx": 7}
+        assert d == {"op": "image"}
 
     def test_ops_are_frozen(self) -> None:
         op = FillOp(well_idx=0, reagent=water, volume_ul=100.0)
