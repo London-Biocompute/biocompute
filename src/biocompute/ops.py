@@ -39,12 +39,12 @@ class ImageOp:
 Op = FillOp | MixOp | ImageOp
 
 
-def op_to_dict(op: Op) -> dict[str, str | int | float]:
+def op_to_dict(op: Op) -> dict[str, str | float]:
     """Serialize an operation to a JSON-compatible dict."""
     if isinstance(op, FillOp):
-        return {"type": "fill", "well_idx": op.well_idx, "reagent": op.reagent.name, "volume_ul": op.volume_ul}
+        return {"op": "fill", "reagent": op.reagent.name, "volume": op.volume_ul}
     elif isinstance(op, MixOp):
-        return {"type": "mix", "well_idx": op.well_idx}
+        return {"op": "mix"}
     elif isinstance(op, ImageOp):
-        return {"type": "image", "well_idx": op.well_idx}
+        return {"op": "image"}
     raise ValueError(f"Unknown op type: {op}")  # pragma: no cover
