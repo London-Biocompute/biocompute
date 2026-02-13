@@ -11,7 +11,6 @@ from typing import Any, Callable
 
 import httpx
 
-from biocompute import cache
 from biocompute.exceptions import BiocomputeError
 from biocompute.ops import op_to_dict
 from biocompute.trace import TracedOp, collect_trace
@@ -44,6 +43,22 @@ class SubmissionResult:
     error: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def well_images(self) -> dict[str, str]:
+        """Well label -> base64 data URI image, from a successful result."""
+        if isinstance(self.result_data, dict):
+            images: dict[str, str] = self.result_data.get("well_images", {})
+            return images
+        return {}
+
+    @property
+    def duration_seconds(self) -> float:
+        """Execution duration in seconds, from a successful result."""
+        if isinstance(self.result_data, dict):
+            val: float = self.result_data.get("duration_seconds", 0.0)
+            return val
+        return 0.0
+
 
 class Client:
     """Client for submitting experiments to a biocompute server.
@@ -65,7 +80,6 @@ class Client:
         challenge_id: str | None = None,
         base_url: str | None = None,
         timeout: float = 300.0,
-        use_cache: bool = True,
     ) -> None:
         config = _load_config() if (api_key is None or base_url is None) else {}
 
@@ -83,7 +97,6 @@ class Client:
         self._challenge_id = challenge_id
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
-        self._use_cache = use_cache
         self._client = httpx.Client(
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=30.0,
@@ -109,10 +122,6 @@ class Client:
     def submit(self, fn: Callable[[], None]) -> SubmissionResult:
         """Submit an experiment function and poll for results.
 
-        If caching is enabled (the default), identical submissions return
-        cached results without hitting the server again. A submission is
-        identified by the SHA-256 of its serialised experiments + challenge_id.
-
         Args:
             fn: A callable that defines well operations.
 
@@ -126,36 +135,6 @@ class Client:
         experiments = _to_experiments(trace.ops)
         challenge_id = self._challenge_id or "default"
 
-        if self._use_cache:
-            key = cache.cache_key(challenge_id, experiments)
-            entry = cache.get(key)
-
-            if entry is not None:
-                if entry.status == "complete":
-                    return SubmissionResult(
-                        experiment_id=entry.job_id,
-                        status="complete",
-                        result_data=entry.result,
-                        error=entry.error,
-                    )
-                elif entry.status == "pending":
-                    result = self._poll(entry.job_id)
-                    cache.put(
-                        key,
-                        cache.CacheEntry(
-                            challenge_id=challenge_id,
-                            experiments_hash=key,
-                            job_id=result.experiment_id,
-                            status=result.status,
-                            result=result.result_data,
-                            error=result.error,
-                        ),
-                    )
-                    return result
-                else:
-                    # failed — remove stale entry and resubmit
-                    cache.remove(key)
-
         resp = self._client.post(
             f"{self._base_url}/api/v1/jobs",
             json={
@@ -165,34 +144,9 @@ class Client:
         )
         _check(resp)
         job_id: str = resp.json()["id"]
+        print(job_id)
 
-        if self._use_cache:
-            cache.put(
-                key,
-                cache.CacheEntry(
-                    challenge_id=challenge_id,
-                    experiments_hash=key,
-                    job_id=job_id,
-                    status="pending",
-                ),
-            )
-
-        result = self._poll(job_id)
-
-        if self._use_cache:
-            cache.put(
-                key,
-                cache.CacheEntry(
-                    challenge_id=challenge_id,
-                    experiments_hash=key,
-                    job_id=result.experiment_id,
-                    status=result.status,
-                    result=result.result_data,
-                    error=result.error,
-                ),
-            )
-
-        return result
+        return self._poll(job_id)
 
     def list_experiments(self) -> list[dict[str, Any]]:
         """List all experiments (jobs) for this challenge.
