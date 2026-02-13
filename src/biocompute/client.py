@@ -6,20 +6,39 @@ import sys
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 import httpx
 
+from biocompute import cache
 from biocompute.exceptions import BiocomputeError
 from biocompute.ops import op_to_dict
 from biocompute.trace import TracedOp, collect_trace
+
+_CONFIG_FILE = Path.home() / ".lbc" / "config.toml"
+
+
+def _load_config() -> dict[str, str]:
+    """Load config from ~/.lbc/config.toml."""
+    if not _CONFIG_FILE.exists():
+        return {}
+    config: dict[str, str] = {}
+    for line in _CONFIG_FILE.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" in line:
+            key, _, value = line.partition("=")
+            config[key.strip()] = value.strip().strip('"')
+    return config
 
 
 @dataclass
 class SubmissionResult:
     """Result of a protocol submission."""
 
-    job_id: str
+    experiment_id: str
     status: str
     result_data: dict[str, Any] | list[Any] | None = None
     error: str | None = None
@@ -41,19 +60,30 @@ class Client:
 
     def __init__(
         self,
-        api_key: str,
+        api_key: str | None = None,
         *,
-        challenge_id: str = "default",
-        base_url: str = "",
+        challenge_id: str | None = None,
+        base_url: str | None = None,
         timeout: float = 300.0,
+        use_cache: bool = True,
     ) -> None:
-        if not base_url:
-            raise BiocomputeError("base_url is required")
+        config = _load_config() if (api_key is None or base_url is None) else {}
+
+        api_key = api_key or config.get("api_key", "")
+        base_url = base_url or config.get("base_url", "")
+        challenge_id = challenge_id or config.get("challenge_id", "default")
+
+        if not api_key or not base_url:
+            raise BiocomputeError(
+                "Missing credentials. Either pass api_key and base_url explicitly, "
+                "or run `lbc login` to configure them."
+            )
 
         self._api_key = api_key
         self._challenge_id = challenge_id
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._use_cache = use_cache
         self._client = httpx.Client(
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=30.0,
@@ -69,8 +99,19 @@ class Client:
     def __exit__(self, *_: object) -> None:
         self.close()
 
+    def user(self) -> dict[str, Any]:
+        """Get the authenticated user's info."""
+        resp = self._client.get(f"{self._base_url}/api/v1/user")
+        _check(resp)
+        data: dict[str, Any] = resp.json()
+        return data
+
     def submit(self, fn: Callable[[], None]) -> SubmissionResult:
         """Submit an experiment function and poll for results.
+
+        If caching is enabled (the default), identical submissions return
+        cached results without hitting the server again. A submission is
+        identified by the SHA-256 of its serialised experiments + challenge_id.
 
         Args:
             fn: A callable that defines well operations.
@@ -82,17 +123,101 @@ class Client:
         if not trace.ops:
             raise BiocomputeError("Experiment has no operations. Call well.fill(), well.mix(), etc. in the experiment function.")
 
+        experiments = _to_experiments(trace.ops)
+        challenge_id = self._challenge_id or "default"
+
+        if self._use_cache:
+            key = cache.cache_key(challenge_id, experiments)
+            entry = cache.get(key)
+
+            if entry is not None:
+                if entry.status == "complete":
+                    return SubmissionResult(
+                        experiment_id=entry.job_id,
+                        status="complete",
+                        result_data=entry.result,
+                        error=entry.error,
+                    )
+                elif entry.status == "pending":
+                    result = self._poll(entry.job_id)
+                    cache.put(
+                        key,
+                        cache.CacheEntry(
+                            challenge_id=challenge_id,
+                            experiments_hash=key,
+                            job_id=result.experiment_id,
+                            status=result.status,
+                            result=result.result_data,
+                            error=result.error,
+                        ),
+                    )
+                    return result
+                else:
+                    # failed — remove stale entry and resubmit
+                    cache.remove(key)
+
         resp = self._client.post(
             f"{self._base_url}/api/v1/jobs",
             json={
-                "challenge_id": self._challenge_id,
-                "experiments": _to_experiments(trace.ops),
+                "challenge_id": challenge_id,
+                "experiments": experiments,
             },
         )
         _check(resp)
         job_id: str = resp.json()["id"]
 
-        return self._poll(job_id)
+        if self._use_cache:
+            cache.put(
+                key,
+                cache.CacheEntry(
+                    challenge_id=challenge_id,
+                    experiments_hash=key,
+                    job_id=job_id,
+                    status="pending",
+                ),
+            )
+
+        result = self._poll(job_id)
+
+        if self._use_cache:
+            cache.put(
+                key,
+                cache.CacheEntry(
+                    challenge_id=challenge_id,
+                    experiments_hash=key,
+                    job_id=result.experiment_id,
+                    status=result.status,
+                    result=result.result_data,
+                    error=result.error,
+                ),
+            )
+
+        return result
+
+    def list_experiments(self) -> list[dict[str, Any]]:
+        """List all experiments (jobs) for this challenge.
+
+        Returns:
+            List of experiment summaries from the server.
+        """
+        resp = self._client.get(f"{self._base_url}/api/v1/jobs")
+        _check(resp)
+        data: list[dict[str, Any]] = resp.json()
+        return data
+
+    def get_experiment(self, experiment_id: str) -> dict[str, Any]:
+        """Get details for a single experiment.
+
+        Args:
+            experiment_id: The experiment (job) ID.
+
+        Returns:
+            Experiment details from the server.
+        """
+        resp = self._client.get(f"{self._base_url}/api/v1/jobs/{experiment_id}")
+        _check(resp)
+        data: dict[str, Any] = resp.json()
+        return data
 
     def target(self) -> str:
         """Get the target image as base64 for this challenge."""
@@ -129,7 +254,7 @@ class Client:
             status = data.get("status", "unknown")
             if status == "complete":
                 return SubmissionResult(
-                    job_id=data["id"],
+                    experiment_id=data["id"],
                     status=data["status"],
                     result_data=data.get("result_data"),
                     error=data.get("error_message"),
