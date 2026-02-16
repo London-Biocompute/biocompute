@@ -119,6 +119,36 @@ class Client:
         data: dict[str, Any] = resp.json()
         return data
 
+    def visualize(self, fn: Callable[[], None]) -> dict[str, Any]:
+        """Get visualization slide data for a protocol.
+
+        Sends the experiment to the server for slide generation and
+        returns the slide JSON. Does not consume the trace — you can
+        still call ``submit()`` after.
+
+        Args:
+            fn: A callable that defines well operations.
+
+        Returns:
+            Dict with ``slides`` and ``reagent_legend`` keys.
+        """
+        trace = collect_trace(fn)
+        if not trace.ops:
+            raise BiocomputeError("No operations to visualize.")
+
+        resp = self._client.post(
+            f"{self._base_url}/api/v1/visualize",
+            json={
+                "challenge_id": self._challenge_id,
+                "experiments": _to_experiments(trace.ops),
+            },
+        )
+        _check(resp)
+        data: dict[str, Any] = resp.json()
+
+        from controller.compiler.viz_cli import render_cli
+        render_cli(data)
+
     def submit(self, fn: Callable[[], None]) -> SubmissionResult:
         """Submit an experiment function and poll for results.
 
