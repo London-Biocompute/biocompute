@@ -150,7 +150,7 @@ class Client:
             raise BiocomputeError("No operations to visualize.")
 
         resp = self._client.post(
-            f"{self._base_url}/api/v1/visualize",
+            f"{self._base_url}/api/v1/jobs/preview",
             json={
                 "experiments": _to_experiments(trace.ops),
             },

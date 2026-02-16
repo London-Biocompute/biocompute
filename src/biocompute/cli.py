@@ -12,6 +12,7 @@ import click
 
 from biocompute.client import CONFIG_FILE, Client, SubmissionResult, save_config
 from biocompute.exceptions import BiocomputeError
+from biocompute.visualize import render_cli
 
 
 def _get_client() -> Client:
@@ -58,58 +59,80 @@ def logout() -> None:
 
 
 
+def _find_experiments(path: Path) -> list[tuple[str, Any]]:
+    """Discover experiment functions in a user script.
+
+    Returns (name, callable) pairs for every top-level function whose name
+    starts with ``experiment``, in definition order.
+    """
+    spec = importlib.util.spec_from_file_location("_user_experiment", path)
+    if spec is None or spec.loader is None:
+        click.echo(f"Cannot load {path}", err=True)
+        sys.exit(1)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    experiments: list[tuple[str, Any]] = []
+    for name in dir(module):
+        if name.startswith("experiment") and callable(getattr(module, name)):
+            experiments.append((name, getattr(module, name)))
+    # Sort by source line number so order matches the file.
+    import inspect
+
+    experiments.sort(key=lambda pair: inspect.getsourcelines(pair[1])[1])
+    return experiments
+
+
 @cli.command()
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--follow", "-f", is_flag=True, help="Follow job progress until completion.")
 def submit(file: str, follow: bool) -> None:
     """Submit an experiment file.
 
-    FILE should be a Python file containing an `experiment` function.
-    By default, prints the job ID and exits. Use --follow to watch progress.
+    FILE should be a Python file containing one or more functions whose names
+    start with ``experiment``. Each function is submitted as a separate job.
     """
     path = Path(file).resolve()
-    experiment_name = path.stem
-    spec = importlib.util.spec_from_file_location("_user_experiment", path)
-    if spec is None or spec.loader is None:
-        click.echo(f"Cannot load {file}", err=True)
-        sys.exit(1)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    experiments = _find_experiments(path)
 
-    fn = getattr(module, "experiment", None)
-    if fn is None:
+    if not experiments:
         click.echo(f"No `experiment` function found in {file}", err=True)
         sys.exit(1)
 
     client = _get_client()
+    failed = False
     try:
-        job = client.submit_async(fn)
-        job_id = job["id"]
+        for exp_name, fn in experiments:
+            job = client.submit_async(fn)
+            job_id = job["id"]
 
-        if not follow:
-            name_styled = click.style(experiment_name, fg="blue", bold=True)
-            click.echo(f"{name_styled} submitted.")
-            click.echo(f"  Job ID: {job_id}")
-            click.echo(f"  Follow progress: lbc show {job_id} --follow")
-            return
+            if not follow:
+                name_styled = click.style(exp_name, fg="blue", bold=True)
+                click.echo(f"{name_styled} submitted.")
+                click.echo(f"  Job ID: {job_id}")
+                click.echo(f"  Follow progress: lbc show {job_id} --follow")
+                continue
 
-        name_styled = click.style(experiment_name, fg="blue", bold=True)
-        click.echo(f"Submitted {name_styled}.")
+            name_styled = click.style(exp_name, fg="blue", bold=True)
+            click.echo(f"Submitted {name_styled}.")
 
-        result = _poll_with_status(client, job_id, experiment_name)
+            result = _poll_with_status(client, job_id, exp_name)
 
-        if result.status == "failed":
-            click.echo("")
-            click.echo(click.style(f"{experiment_name} failed.", fg="red", bold=True))
-            if result.error:
-                click.echo(f"  {result.error}")
-            sys.exit(1)
+            if result.status == "failed":
+                click.echo("")
+                click.echo(click.style(f"{exp_name} failed.", fg="red", bold=True))
+                if result.error:
+                    click.echo(f"  {result.error}")
+                failed = True
 
     except BiocomputeError as e:
         click.echo(f"\nError: {e}", err=True)
         sys.exit(1)
     finally:
         client.close()
+
+    if failed:
+        sys.exit(1)
 
 
 def _poll_with_status(client: Client, job_id: str, experiment_name: str) -> SubmissionResult:
@@ -161,6 +184,34 @@ def _poll_with_status(client: Client, job_id: str, experiment_name: str) -> Subm
         spinner_idx = (spinner_idx + 1) % len(spinner_chars)
 
         time.sleep(delay)
+
+
+@cli.command()
+@click.argument("file", type=click.Path(exists=True))
+def visualize(file: str) -> None:
+    """Preview experiments without submitting.
+
+    Shows the compiler's execution plan as colored ASCII plates for each
+    experiment function in FILE. Runs locally — no server required.
+    """
+    from controller.compiler.viz import build_slides_from_experiments
+
+    from biocompute.client import _to_experiments
+    from biocompute.trace import collect_trace
+
+    path = Path(file).resolve()
+    experiments = _find_experiments(path)
+
+    if not experiments:
+        click.echo(f"No `experiment` function found in {file}", err=True)
+        sys.exit(1)
+
+    for exp_name, fn in experiments:
+        name_styled = click.style(exp_name, fg="blue", bold=True)
+        click.echo(name_styled)
+        trace = collect_trace(fn)
+        data = build_slides_from_experiments(_to_experiments(trace.ops))
+        render_cli(data)
 
 
 @cli.command()
