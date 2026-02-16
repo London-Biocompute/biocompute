@@ -61,7 +61,7 @@ class TestSubmit:
 
         client = Client(api_key="sk", base_url="http://test:9999")
         result = client.submit(_experiment)
-        assert result.experiment_id == "j1"
+        assert result.job_id == "j1"
         assert result.status == "complete"
         assert len(httpx_mock.get_requests()) == 2
         client.close()

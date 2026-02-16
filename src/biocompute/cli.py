@@ -89,7 +89,7 @@ def submit(file: str, follow: bool) -> None:
         if not follow:
             name_styled = click.style(experiment_name, fg="blue", bold=True)
             click.echo(f"{name_styled} submitted.")
-            click.echo(f"  Experiment ID: {job_id}")
+            click.echo(f"  Job ID: {job_id}")
             click.echo(f"  Follow progress: lbc show {job_id} --follow")
             return
 
@@ -132,7 +132,7 @@ def _poll_with_status(client: Client, job_id: str, experiment_name: str) -> Subm
             click.echo("")
             raise BiocomputeError(f"Job did not complete within {timeout}s")
 
-        data = client.get_experiment(job_id)
+        data = client.get_job(job_id)
         status = data.get("status", "unknown")
 
         if status != last_status:
@@ -164,25 +164,25 @@ def _poll_with_status(client: Client, job_id: str, experiment_name: str) -> Subm
 
 
 @cli.command()
-def experiments() -> None:
-    """List all experiments."""
+def jobs() -> None:
+    """List all jobs."""
     client = _get_client()
     try:
-        data = client.list_experiments()
+        data = client.list_jobs()
         if not data:
-            click.echo("No experiments found.")
+            click.echo("No jobs found.")
             return
 
-        rows = [(exp.get("id", "?"), exp.get("status", "unknown")) for exp in data]
-        id_width = max(len("Experiment ID"), *(len(r[0]) for r in rows))
+        rows = [(j.get("id", "?"), j.get("status", "unknown")) for j in data]
+        id_width = max(len("Job ID"), *(len(r[0]) for r in rows))
         st_width = max(len("Status"), *(len(r[1]) for r in rows))
 
-        header = f"  {'Experiment ID':<{id_width}}  {'Status':<{st_width}}"
+        header = f"  {'Job ID':<{id_width}}  {'Status':<{st_width}}"
         separator = f"  {'─' * id_width}  {'─' * st_width}"
         click.echo(header)
         click.echo(separator)
-        for exp_id, status in rows:
-            click.echo(f"  {exp_id:<{id_width}}  {status:<{st_width}}")
+        for job_id, status in rows:
+            click.echo(f"  {job_id:<{id_width}}  {status:<{st_width}}")
     except BiocomputeError as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -191,24 +191,24 @@ def experiments() -> None:
 
 
 @cli.command()
-@click.argument("experiment_id")
+@click.argument("job_id")
 @click.option("--follow", "-f", is_flag=True, help="Follow job progress until completion.")
-def show(experiment_id: str, follow: bool) -> None:
-    """Show details for an experiment."""
+def show(job_id: str, follow: bool) -> None:
+    """Show details for a job."""
     client = _get_client()
     try:
-        exp: dict[str, Any] = client.get_experiment(experiment_id)
+        job: dict[str, Any] = client.get_job(job_id)
 
         if follow:
-            status = exp.get("status", "unknown")
+            status = job.get("status", "unknown")
             if status in ("complete", "failed"):
                 click.echo(f"Job already {status}.")
             else:
-                experiment_name = experiment_id[:8]
-                _poll_with_status(client, experiment_id, experiment_name)
+                job_name = job_id[:8]
+                _poll_with_status(client, job_id, job_name)
             return
 
-        for key, value in exp.items():
+        for key, value in job.items():
             click.echo(f"  {key}: {value}")
     except BiocomputeError as e:
         click.echo(f"Error: {e}", err=True)

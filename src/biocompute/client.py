@@ -43,7 +43,7 @@ def _load_config() -> dict[str, str]:
 class SubmissionResult:
     """Result of a protocol submission."""
 
-    experiment_id: str
+    job_id: str
     status: str
     result_data: dict[str, Any] | list[Any] | None = None
     error: str | None = None
@@ -52,7 +52,7 @@ class SubmissionResult:
     @classmethod
     def from_job_data(cls, data: dict[str, Any]) -> SubmissionResult:
         return cls(
-            experiment_id=data["id"],
+            job_id=data["id"],
             status=data.get("status", "unknown"),
             result_data=data.get("result_data"),
             error=data.get("error_message"),
@@ -196,27 +196,27 @@ class Client:
         data: dict[str, Any] = resp.json()
         return data
 
-    def list_experiments(self) -> list[dict[str, Any]]:
-        """List all experiments (jobs) for this challenge.
+    def list_jobs(self) -> list[dict[str, Any]]:
+        """List all jobs for this challenge.
 
         Returns:
-            List of experiment summaries from the server.
+            List of job summaries from the server.
         """
         resp = self._client.get(f"{self._base_url}/api/v1/jobs")
         _check(resp)
         data: list[dict[str, Any]] = resp.json()
         return data
 
-    def get_experiment(self, experiment_id: str) -> dict[str, Any]:
-        """Get details for a single experiment.
+    def get_job(self, job_id: str) -> dict[str, Any]:
+        """Get details for a single job.
 
         Args:
-            experiment_id: The experiment (job) ID.
+            job_id: The job ID.
 
         Returns:
-            Experiment details from the server.
+            Job details from the server.
         """
-        resp = self._client.get(f"{self._base_url}/api/v1/jobs/{experiment_id}")
+        resp = self._client.get(f"{self._base_url}/api/v1/jobs/{job_id}")
         _check(resp)
         data: dict[str, Any] = resp.json()
         return data
@@ -257,7 +257,7 @@ class Client:
             if elapsed > self._timeout:
                 raise BiocomputeError(f"Job did not complete within {self._timeout}s")
 
-            data = self.get_experiment(job_id)
+            data = self.get_job(job_id)
             status = data.get("status", "unknown")
 
             if status in ("complete", "failed"):
