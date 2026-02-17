@@ -12,7 +12,7 @@
  | '_ \| |/ _ \ / __/ _ \| '_ ` _ \| '_ \| | | | __/ _ \
  | |_) | | (_) | (_| (_) | | | | | | |_) | |_| | ||  __/
  |_.__/|_|\___/ \___\___/|_| |_| |_| .__/ \__,_|\__\___|
-                                    |_|
+                                   |_|
 ```
 
 Python functions in, lab results out. Maintained by [London Biocompute](https://londonbiocompute.com).
