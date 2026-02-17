@@ -8,17 +8,21 @@ version = "0.1.0"
 description = "London Biocompute client library"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 authors = [
     { name = "London Biocompute" },
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "click>=8.1",
     "httpx>=0.27",
+    "textual>=1.0",
 ]
 
 [project.scripts]
@@ -37,11 +41,21 @@ strict = true
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["F", "B", "I"]
 ignore = ["E402", "E501", "E701", "B007"]
+
+[tool.tox]
+env_list = ["py310", "py311", "py312", "py313"]
+
+[tool.tox.env_run_base]
+deps = [
+    "pytest>=9.0",
+    "pytest-httpx>=0.35",
+]
+commands = [["pytest"]]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

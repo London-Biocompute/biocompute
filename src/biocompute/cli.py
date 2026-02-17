@@ -10,7 +10,13 @@ from typing import Any
 
 import click
 
-from biocompute.client import CONFIG_FILE, Client, SubmissionResult, save_config
+from biocompute.client import (
+    CONFIG_FILE,
+    DEFAULT_BASE_URL,
+    Client,
+    SubmissionResult,
+    save_config,
+)
 from biocompute.exceptions import BiocomputeError
 from biocompute.visualize import render_cli
 
@@ -31,20 +37,19 @@ def cli() -> None:
 
 @cli.command()
 def login() -> None:
-    """Configure API key and server URL."""
+    """Configure API key."""
     api_key = click.prompt("API key")
-    base_url = click.prompt("Server URL", default="https://lbc.fly.dev")
 
     click.echo("Verifying credentials...")
     try:
-        client = Client(api_key=api_key, base_url=base_url)
+        client = Client(api_key=api_key, base_url=DEFAULT_BASE_URL)
         user = client.user()
         client.close()
     except BiocomputeError as e:
         click.echo(f"Login failed: {e}", err=True)
         sys.exit(1)
 
-    save_config({"api_key": api_key, "base_url": base_url})
+    save_config({"api_key": api_key, "base_url": DEFAULT_BASE_URL})
     click.echo(f"Logged in as {user['name']}.")
 
 
@@ -194,10 +199,9 @@ def visualize(file: str) -> None:
     Shows the compiler's execution plan as colored ASCII plates for each
     experiment function in FILE. Runs locally — no server required.
     """
-    from controller.compiler.viz import build_slides_from_experiments
-
     from biocompute.client import _to_experiments
     from biocompute.trace import collect_trace
+    from biocompute.visualize import build_slides_from_experiments
 
     path = Path(file).resolve()
     experiments = _find_experiments(path)
@@ -207,11 +211,9 @@ def visualize(file: str) -> None:
         sys.exit(1)
 
     for exp_name, fn in experiments:
-        name_styled = click.style(exp_name, fg="blue", bold=True)
-        click.echo(name_styled)
         trace = collect_trace(fn)
         data = build_slides_from_experiments(_to_experiments(trace.ops))
-        render_cli(data)
+        render_cli(data, title=exp_name)
 
 
 @cli.command()

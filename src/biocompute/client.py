@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -15,6 +16,7 @@ from biocompute.ops import op_to_dict
 from biocompute.trace import TracedOp, collect_trace
 
 CONFIG_FILE = Path.home() / ".lbc" / "config.toml"
+DEFAULT_BASE_URL = os.environ.get("LBC_BASE_URL", "https://lbc.fly.dev")
 
 
 def save_config(config: dict[str, str]) -> None:
@@ -99,7 +101,7 @@ class Client:
         config = _load_config() if (api_key is None or base_url is None) else {}
 
         api_key = api_key or config.get("api_key", "")
-        base_url = base_url or config.get("base_url", "")
+        base_url = base_url or config.get("base_url", "") or DEFAULT_BASE_URL
 
         if not api_key or not base_url:
             raise BiocomputeError(
@@ -128,33 +130,6 @@ class Client:
     def user(self) -> dict[str, Any]:
         """Get the authenticated user's info."""
         resp = self._client.get(f"{self._base_url}/api/v1/user")
-        _check(resp)
-        data: dict[str, Any] = resp.json()
-        return data
-
-    def visualize(self, fn: Callable[[], None]) -> dict[str, Any]:
-        """Get visualization slide data for a protocol.
-
-        Sends the experiment to the server for slide generation and
-        returns the slide JSON. Does not consume the trace — you can
-        still call ``submit()`` after.
-
-        Args:
-            fn: A callable that defines well operations.
-
-        Returns:
-            Dict with ``slides`` and ``reagent_legend`` keys.
-        """
-        trace = collect_trace(fn)
-        if not trace.ops:
-            raise BiocomputeError("No operations to visualize.")
-
-        resp = self._client.post(
-            f"{self._base_url}/api/v1/jobs/preview",
-            json={
-                "experiments": _to_experiments(trace.ops),
-            },
-        )
         _check(resp)
         data: dict[str, Any] = resp.json()
         return data
