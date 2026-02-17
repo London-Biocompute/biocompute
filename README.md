@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/logo_dark.svg">
-  <img alt="biocompute" src="docs/logo_light.svg" width="40%">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo_dark.svg">
+  <img alt="biocompute" src="assets/logo_light.svg" width="40%">
 </picture>
 
 <br>
