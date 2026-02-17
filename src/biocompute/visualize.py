@@ -219,7 +219,7 @@ def build_slides_from_experiments(
 # ── Well cell rendering ───────────────────────────────────────────
 
 _WELL_FILLED = "\u25cf"  # ● filled circle
-_WELL_MIXED = "\u21bb"  # ↻ clockwise arrow (swirl)
+_WELL_MIXED = "\u229b"  # ⊛ circled asterisk
 _WELL_EMPTY = "\u25cb"  # ○ empty circle
 
 
@@ -271,59 +271,57 @@ def _build_legend_text(legend: dict[str, str]) -> Any:
 # ── Plain-text fallback (non-TTY / piped output) ─────────────────
 
 
-def _render_all(
-    slides: list[dict[str, Any]],
-    legend: dict[str, str],
-    title: str = "",
-) -> None:
-    """Non-interactive: print all slides sequentially using Rich tables."""
+def _render_all(experiments: list[dict[str, Any]]) -> None:
+    """Non-interactive: print all experiments/slides sequentially."""
     from rich.console import Console
     from rich.text import Text
 
     console = Console()
 
-    if title:
-        heading = Text(f"\n  {title}", style="bold underline")
-        console.print(heading)
-        console.print()
+    for exp in experiments:
+        title = exp.get("title", "")
+        slides: list[dict[str, Any]] = exp.get("slides", [])
+        legend: dict[str, str] = exp.get("reagent_legend", {})
 
-    for idx, slide in enumerate(slides):
-        step_title = slide.get("title", "")
-        header = Text()
-        header.append(f"Step {idx + 1} of {len(slides)}", style="dim")
-        header.append("  ")
-        header.append(step_title, style="bold")
-        console.print(header)
-        console.print()
-
-        for pi, plate in enumerate(slide.get("plates", [])):
-            label = plate.get("label", f"Plate {pi + 1}")
-            console.print(f"  [dim]{label}[/dim]")
-            console.print(_build_plate_table(plate))
+        if title:
+            console.print(Text(f"\n  {title}", style="bold underline"))
             console.print()
 
-        console.print(_build_legend_text(legend))
-        console.print()
+        for idx, slide in enumerate(slides):
+            step_title = slide.get("title", "")
+            header = Text()
+            header.append(f"Step {idx + 1} of {len(slides)}", style="dim")
+            header.append("  ")
+            header.append(step_title, style="bold")
+            console.print(header)
+            console.print()
+
+            for pi, plate in enumerate(slide.get("plates", [])):
+                label = plate.get("label", f"Plate {pi + 1}")
+                console.print(f"  [dim]{label}[/dim]")
+                console.print(_build_plate_table(plate))
+                console.print()
+
+            console.print(_build_legend_text(legend))
+            console.print()
 
 
 # ── Textual TUI (interactive mode) ───────────────────────────────
 
 
-def _run_textual_app(
-    slides: list[dict[str, Any]],
-    legend: dict[str, str],
-    title: str = "",
-) -> None:
+def _run_textual_app(experiments: list[dict[str, Any]]) -> None:
     from textual.app import App, ComposeResult
     from textual.binding import Binding
     from textual.widgets import Footer, Static
+
+    multi = len(experiments) > 1
 
     class SlideViewerApp(App[None]):
         CSS = """
         Screen {
             layout: vertical;
         }
-        #experiment-name {
+        #experiment-title {
             margin: 1 2 0 2;
             text-style: bold underline;
         }
@@ -341,20 +339,21 @@ def _run_textual_app(
         """
 
         BINDINGS = [
-            Binding("right", "next_slide", "Next"),
-            Binding("left", "prev_slide", "Previous"),
+            Binding("right", "next_slide", "Next Step"),
+            Binding("left", "prev_slide", "Prev Step"),
+            Binding("]", "next_exp", "Next Exp.", key_display="]", show=multi),
+            Binding("[", "prev_exp", "Prev Exp.", key_display="[", show=multi),
             Binding("q", "quit", "Quit"),
         ]
 
         def __init__(self) -> None:
             super().__init__()
-            self._current = 0
-            self._slides = slides
-            self._legend = legend
-            self._title = title
+            self._experiments = experiments
+            self._current_exp = 0
+            self._current_step = 0
 
         def compose(self) -> ComposeResult:
-            yield Static(self._title, id="experiment-name")
+            yield Static("", id="experiment-title")
             yield Static("", id="step-counter")
             yield Static("", id="step-title")
             yield Static("", id="plates-container")
@@ -362,17 +361,29 @@ def _run_textual_app(
             yield Footer()
 
         def on_mount(self) -> None:
-            self._refresh_slide()
+            self._refresh()
 
-        def _refresh_slide(self) -> None:
-            slide = self._slides[self._current]
-            total = len(self._slides)
-            step_title = slide.get("title", "")
+        def _cur_slides(self) -> list[dict[str, Any]]:
+            result: list[dict[str, Any]] = self._experiments[self._current_exp].get("slides", [])
+            return result
+
+        def _refresh(self) -> None:
+            exp = self._experiments[self._current_exp]
+            slides = self._cur_slides()
+            legend: dict[str, str] = exp.get("reagent_legend", {})
+            title = exp.get("title", f"Experiment {self._current_exp + 1}")
+
+            if multi:
+                title = f"{title}  ({self._current_exp + 1}/{len(self._experiments)})"
+            self.query_one("#experiment-title", Static).update(title)
+
+            step = min(self._current_step, len(slides) - 1) if slides else 0
+            slide = slides[step] if slides else {}
 
             self.query_one("#step-counter", Static).update(
-                f"Step {self._current + 1} of {total}"
+                f"Step {step + 1} of {len(slides)}" if slides else "No steps"
             )
-            self.query_one("#step-title", Static).update(step_title)
+            self.query_one("#step-title", Static).update(slide.get("title", ""))
 
             from rich.console import Group, RenderableType
             from rich.text import Text
@@ -384,18 +395,33 @@ def _run_textual_app(
                 parts.append(_build_plate_table(plate))
                 parts.append(Text(""))
 
-            self.query_one("#plates-container", Static).update(Group(*parts))
-            self.query_one("#legend", Static).update(_build_legend_text(self._legend))
+            self.query_one("#plates-container", Static).update(
+                Group(*parts) if parts else ""
+            )
+            self.query_one("#legend", Static).update(_build_legend_text(legend))
 
         def action_next_slide(self) -> None:
-            if self._current < len(self._slides) - 1:
-                self._current += 1
-                self._refresh_slide()
+            slides = self._cur_slides()
+            if self._current_step < len(slides) - 1:
+                self._current_step += 1
+                self._refresh()
 
         def action_prev_slide(self) -> None:
-            if self._current > 0:
-                self._current -= 1
-                self._refresh_slide()
+            if self._current_step > 0:
+                self._current_step -= 1
+                self._refresh()
+
+        def action_next_exp(self) -> None:
+            if self._current_exp < len(self._experiments) - 1:
+                self._current_exp += 1
+                self._current_step = 0
+                self._refresh()
+
+        def action_prev_exp(self) -> None:
+            if self._current_exp > 0:
+                self._current_exp -= 1
+                self._current_step = 0
+                self._refresh()
 
     SlideViewerApp().run()
 
@@ -403,21 +429,22 @@ def _run_textual_app(
 # ── Public entry point ────────────────────────────────────────────
 
 
-def render_cli(data: dict[str, Any], *, title: str = "") -> None:
-    """Render slides interactively in the terminal.
+def render_cli(experiments: list[dict[str, Any]]) -> None:
+    """Render experiment slides interactively in the terminal.
 
-    Arrow keys to navigate, 'q' to quit.
-    Falls back to non-interactive plain-text mode if not a TTY.
+    Each element of *experiments* is a dict with keys ``title``,
+    ``slides``, and ``reagent_legend``.
+
+    ``[``/``]`` cycles between experiments; arrow keys navigate steps.
+    ``q`` to quit.  Falls back to sequential plain-text output if
+    not a TTY.
     """
-    slides = data.get("slides", [])
-    legend = data.get("reagent_legend", {})
-
-    if not slides:
+    if not experiments or all(not e.get("slides") for e in experiments):
         print("No slides to display.")
         return
 
     if not sys.stdin.isatty():
-        _render_all(slides, legend, title=title)
+        _render_all(experiments)
         return
 
-    _run_textual_app(slides, legend, title=title)
+    _run_textual_app(experiments)

@@ -210,10 +210,12 @@ def visualize(file: str) -> None:
         click.echo(f"No `experiment` function found in {file}", err=True)
         sys.exit(1)
 
+    all_exp_data: list[dict[str, Any]] = []
     for exp_name, fn in experiments:
         trace = collect_trace(fn)
         data = build_slides_from_experiments(_to_experiments(trace.ops))
-        render_cli(data, title=exp_name)
+        all_exp_data.append({"title": exp_name, **data})
+    render_cli(all_exp_data)
 
 
 @cli.command()
