@@ -57,7 +57,15 @@ And that's it. Results stream back to your terminal as experiments finish execut
 
 ## How it works
 
-You write a function, then submit. The compiler figures out what equipment is needed, optimises the layout, and runs it faster than any manually-configured setup could.
+Your experiment function describes intent. The compiler takes this high-level declarative code and turns it into a fully scheduled, hardware-specific protocol. It handles:
+
+- **Automatic parallelism** — independent operations are identified and scheduled concurrently so protocols finish faster without any manual orchestration.
+- **Plate layout** — wells are assigned to physical plates based on thermal constraints. Multi-temperature experiments get split across plates automatically.
+- **Operation collapsing** — redundant per-well instructions (like 96 identical incubations) are collapsed into single plate-level commands.
+- **Device mapping** — every operation is matched to the right piece of hardware (pipette, camera, incubator, gripper) based on a capability model, so swapping equipment never means rewriting your protocol.
+- **Multi-plate scaling** — protocols that exceed a single plate are transparently distributed across as many plates as needed.
+
+You describe what should happen. The compiler figures out how to make it fast.
 
 ### Operations
 
