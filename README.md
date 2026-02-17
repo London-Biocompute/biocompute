@@ -9,6 +9,10 @@
 
 Wet lab automation as Python code. Maintained by [london biocompute](https://londonbiocompute.com).
 
+[![PyPI version](https://img.shields.io/pypi/v/biocompute)](https://pypi.org/project/biocompute/)
+[![Python](https://img.shields.io/pypi/pyversions/biocompute)](https://pypi.org/project/biocompute/)
+[![License](https://img.shields.io/github/license/bjsi/biocompute)](LICENSE)
+
 </div>
 
 [![PyPI version](https://img.shields.io/pypi/v/biocompute)](https://pypi.org/project/biocompute/)
