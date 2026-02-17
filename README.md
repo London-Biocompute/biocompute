@@ -1,29 +1,21 @@
 <div align="center">
 
-```
-             _                 _
-            | | ___  _ __   __| | ___  _ __
-            | |/ _ \| '_ \ / _` |/ _ \| '_ \
-            | | (_) | | | | (_| | (_) | | | |
-            |_|\___/|_| |_|\__,_|\___/|_| |_|
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo_dark.svg">
+  <img alt="biocompute" src="docs/logo_light.svg" width="40%">
+</picture>
 
-  _     _                                     _
- | |__ (_) ___   ___ ___  _ __ ___  _ __  _  _| |_ ___
- | '_ \| |/ _ \ / __/ _ \| '_ ` _ \| '_ \| | | | __/ _ \
- | |_) | | (_) | (_| (_) | | | | | | |_) | |_| | ||  __/
- |_.__/|_|\___/ \___\___/|_| |_| |_| .__/ \__,_|\__\___|
-                                   |_|
-```
+<br>
 
-Python functions in, lab results out. Maintained by [London Biocompute](https://londonbiocompute.com).
+Wet lab automation as Python code. Maintained by [london biocompute](https://londonbiocompute.com).
 
 </div>
 
 ---
 
-biocompute lets you write wet lab experiments as plain Python. Every `well.fill()`, `well.mix()`, `well.image()` call is traced locally and sent as a batch to real lab hardware. No drag-and-drop GUIs, no vendor lock-in, no manual pipetting.
+**biocompute** is a framework that lets you write wet lab experiments as plain Python. Every `well.fill()`, `well.mix()`, `well.image()` call is traced locally and sent as a batch to real lab hardware. No drag-and-drop GUIs, no vendor lock-in, no manual pipetting.
 
-If you know Python, you already know how to use this.
+If you know Python, you already know how to run wet lab experiments.
 
 ---
 
@@ -56,7 +48,7 @@ And that's it. Results stream back to your terminal.
 
 ## How it works
 
-You write a function. The compiler figures out what equipment is needed, optimises the layout, and runs it faster than any manually-configured setup could.
+You write a function, then submit. The compiler figures out what equipment is needed, optimises the layout, and runs it faster than any manually-configured setup could.
 
 ```
   Write Python  →  Submit to server  →  Compile experiment  →  Execute on hardware
