@@ -11,6 +11,10 @@ Wet lab automation as Python code. Maintained by [london biocompute](https://lon
 
 </div>
 
+[![PyPI version](https://img.shields.io/pypi/v/biocompute)](https://pypi.org/project/biocompute/)
+[![Python](https://img.shields.io/pypi/pyversions/biocompute)](https://pypi.org/project/biocompute/)
+[![License](https://img.shields.io/github/license/bjsi/biocompute)](LICENSE)
+
 **biocompute** is a framework that lets you write wet lab experiments as plain Python. Define your protocol with calls like `well.fill()`, `well.mix()`, and `well.image()`. Then execute on real lab hardware that handles the liquid dispensing, mixing, and imaging automatically. No drag-and-drop GUIs, no vendor lock-in, no manual pipetting.
 
 If you know Python, you can run wet lab experiments.
@@ -19,10 +23,15 @@ If you know Python, you can run wet lab experiments.
 
 ## Quick start
 
+Create a virtual environment and install the `biocompute` package.
+
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install biocompute
-lbc login
 ```
+
+Create a file called `super_simple_experiment.py` and copy the code snippet.
 
 ```python
 from biocompute import wells, red_dye, green_dye, blue_dye
@@ -36,21 +45,19 @@ def experiment():
         well.image()
 ```
 
+Submit the experiment to the job server.
+
 ```bash
-lbc submit my_experiment.py --follow
+lbc submit super_simple_experiment.py --follow
 ```
 
-And that's it. Results stream back to your terminal.
+And that's it. Results stream back to your terminal as experiments finish executing on the physical hardware.
 
 ---
 
 ## How it works
 
 You write a function, then submit. The compiler figures out what equipment is needed, optimises the layout, and runs it faster than any manually-configured setup could.
-
-```
-  Write Python  →  Submit to server  →  Compile experiment  →  Execute on hardware
-```
 
 ### Operations
 
@@ -64,6 +71,8 @@ You write a function, then submit. The compiler figures out what equipment is ne
 
 ### Reagents
 
+Import the built-in reagents you need.
+
 ```python
 from biocompute import red_dye, green_dye, blue_dye, water
 ```
@@ -75,6 +84,8 @@ from biocompute import red_dye, green_dye, blue_dye, water
 Use numpy. Use scipy. Use whatever. The system only sees wells and operations.
 
 ### Colour sweep
+
+Sweep red dye volume across ten wells using numpy to generate the range.
 
 ```python
 import numpy as np
