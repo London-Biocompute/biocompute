@@ -1,19 +1,11 @@
 <div align="center">
 
-```
-             _                 _
-            | | ___  _ __   __| | ___  _ __
-            | |/ _ \| '_ \ / _` |/ _ \| '_ \
-            | | (_) | | | | (_| | (_) | | | |
-            |_|\___/|_| |_|\__,_|\___/|_| |_|
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo_dark.svg">
+  <img alt="biocompute" src="docs/logo_light.svg" width="40%">
+</picture>
 
-  _     _                                     _
- | |__ (_) ___   ___ ___  _ __ ___  _ __  _  _| |_ ___
- | '_ \| |/ _ \ / __/ _ \| '_ ` _ \| '_ \| | | | __/ _ \
- | |_) | | (_) | (_| (_) | | | | | | |_) | |_| | ||  __/
- |_.__/|_|\___/ \___\___/|_| |_| |_| .__/ \__,_|\__\___|
-                                   |_|
-```
+<br>
 
 Python functions in, lab results out. Maintained by [London Biocompute](https://londonbiocompute.com).
 
