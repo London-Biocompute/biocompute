@@ -9,11 +9,11 @@
 
 Wet lab automation as Python code. Maintained by [london biocompute](https://londonbiocompute.com).
 
-</div>
-
 [![PyPI version](https://img.shields.io/pypi/v/biocompute)](https://pypi.org/project/biocompute/)
 [![Python](https://img.shields.io/pypi/pyversions/biocompute)](https://pypi.org/project/biocompute/)
 [![License](https://img.shields.io/github/license/bjsi/biocompute)](LICENSE)
+
+</div>
 
 **biocompute** is a framework that lets you write wet lab experiments as plain Python. Define your protocol with calls like `well.fill()`, `well.mix()`, and `well.image()`. Then execute on real lab hardware that handles the liquid dispensing, mixing, and imaging automatically. No drag-and-drop GUIs, no vendor lock-in, no manual pipetting.
 
