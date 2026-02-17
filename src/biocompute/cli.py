@@ -1,4 +1,4 @@
-"""CLI for the London Biocompute competition."""
+"""biocompute CLI."""
 
 from __future__ import annotations
 
@@ -26,13 +26,13 @@ def _get_client() -> Client:
     try:
         return Client()
     except BiocomputeError:
-        click.echo("Not configured. Run `lbc login` first.", err=True)
+        click.echo("Not configured. Run `biocompute login` first.", err=True)
         sys.exit(1)
 
 
 @click.group()
 def cli() -> None:
-    """London Biocompute competition CLI."""
+    """biocompute CLI."""
 
 
 @cli.command()
@@ -115,7 +115,7 @@ def submit(file: str, follow: bool) -> None:
                 name_styled = click.style(exp_name, fg="blue", bold=True)
                 click.echo(f"{name_styled} submitted.")
                 click.echo(f"  Job ID: {job_id}")
-                click.echo(f"  Follow progress: lbc show {job_id} --follow")
+                click.echo(f"  Follow progress: biocompute show {job_id} --follow")
                 continue
 
             name_styled = click.style(exp_name, fg="blue", bold=True)
@@ -177,7 +177,7 @@ def _poll_with_status(client: Client, job_id: str, experiment_name: str) -> Subm
             if status == "complete":
                 check = click.style("✔", fg="green", bold=True)
                 name_styled = click.style(experiment_name, fg="blue", bold=True)
-                results_cmd = click.style(f"lbc show {job_id}", fg="green", bold=True)
+                results_cmd = click.style(f"biocompute show {job_id}", fg="green", bold=True)
                 click.echo(f"  {check} {name_styled} completed. View results: {results_cmd}")
 
             return result

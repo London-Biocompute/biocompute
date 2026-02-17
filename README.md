@@ -48,7 +48,7 @@ def experiment():
 Submit the experiment to the job server.
 
 ```bash
-lbc submit super_simple_experiment.py --follow
+biocompute submit super_simple_experiment.py --follow
 ```
 
 And that's it. Results stream back to your terminal as experiments finish executing on the physical hardware.

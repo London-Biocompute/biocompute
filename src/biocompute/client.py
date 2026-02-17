@@ -15,19 +15,19 @@ from biocompute.exceptions import BiocomputeError
 from biocompute.ops import op_to_dict
 from biocompute.trace import TracedOp, collect_trace
 
-CONFIG_FILE = Path.home() / ".lbc" / "config.toml"
+CONFIG_FILE = Path.home() / ".biocompute" / "config.toml"
 DEFAULT_BASE_URL = os.environ.get("LBC_BASE_URL", "https://lbc.fly.dev")
 
 
 def save_config(config: dict[str, str]) -> None:
-    """Save config to ~/.lbc/config.toml."""
+    """Save config to ~/.biocompute/config.toml."""
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     lines = [f'{k} = "{v}"' for k, v in config.items()]
     CONFIG_FILE.write_text("\n".join(lines) + "\n")
 
 
 def _load_config() -> dict[str, str]:
-    """Load config from ~/.lbc/config.toml."""
+    """Load config from ~/.biocompute/config.toml."""
     if not CONFIG_FILE.exists():
         return {}
     config: dict[str, str] = {}
@@ -106,7 +106,7 @@ class Client:
         if not api_key or not base_url:
             raise BiocomputeError(
                 "Missing credentials. Either pass api_key and base_url explicitly, "
-                "or run `lbc login` to configure them."
+                "or run `biocompute login` to configure them."
             )
 
         self._api_key = api_key
