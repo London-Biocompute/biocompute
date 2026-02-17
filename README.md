@@ -1,3 +1,5 @@
+<div align="center">
+
 ```
              _                 _
             | | ___  _ __   __| | ___  _ __
@@ -10,31 +12,29 @@
  | '_ \| |/ _ \ / __/ _ \| '_ ` _ \| '_ \| | | | __/ _ \
  | |_) | | (_) | (_| (_) | | | | | | |_) | |_| | ||  __/
  |_.__/|_|\___/ \___\___/|_| |_| |_| .__/ \__,_|\__\___|
-                                    |_|
+                                   |_|
 ```
 
-**Define experiments as Python code. Run them on real lab hardware.**
+Python functions in, lab results out. Maintained by [London Biocompute](https://londonbiocompute.com).
 
-Python client for [London Biocompute](https://londonbiocompute.com). Write functions that describe microplate operations, submit them from your terminal, and get results back from automated lab equipment.
+</div>
 
 ---
 
-## Installation
+biocompute lets you write wet lab experiments as plain Python. Every `well.fill()`, `well.mix()`, `well.image()` call is traced locally and sent as a batch to real lab hardware. No drag-and-drop GUIs, no vendor lock-in, no manual pipetting.
+
+If you know Python, you already know how to use this.
+
+---
+
+## Quick start
 
 ```bash
 pip install biocompute
-```
-
-Requires Python 3.10+.
-
-## Quick Start
-
-```bash
 lbc login
 ```
 
 ```python
-# my_experiment.py
 from biocompute import wells, red_dye, green_dye, blue_dye
 
 def experiment():
@@ -50,37 +50,41 @@ def experiment():
 lbc submit my_experiment.py --follow
 ```
 
-## How It Works
+And that's it. Results stream back to your terminal.
 
-You describe what should happen in each well of a 96-well microplate. The `experiment` function is traced - every operation is recorded and sent to the server as a batch.
+---
+
+## How it works
+
+You write a function. The compiler figures out what equipment is needed, optimises the layout, and runs it faster than any manually-configured setup could.
 
 ```
-  +-----------+     +-----------+     +-----------+     +-----------+
-  |  Write    | --> |  Trace    | --> |  Submit   | --> |  Execute  |
-  |  Python   |     |  ops      |     |  to       |     |  on real  |
-  |  code     |     |  locally  |     |  server   |     |  hardware |
-  +-----------+     +-----------+     +-----------+     +-----------+
+  Write Python  →  Submit to server  →  Compile experiment  →  Execute on hardware
 ```
 
-### Well operations
+### Operations
 
-| Method                    | Description                                    |
-| ------------------------- | ---------------------------------------------- |
-| `well.fill(vol, reagent)` | Dispense `vol` microlitres of `reagent`        |
-| `well.mix()`              | Mix the well contents                          |
-| `well.image()`            | Capture an image of the well                   |
+| Method | What it does |
+| --- | --- |
+| `well.fill(vol, reagent)` | Dispense `vol` µL of `reagent` |
+| `well.mix()` | Mix well contents |
+| `well.image()` | Capture an image |
 
-`wells(count=n)` yields `n` wells with auto-incrementing indices. Multiple calls within the same experiment produce non-overlapping wells.
+`wells(count=n)` yields `n` wells. Multiple calls produce non-overlapping wells.
 
-### Available reagents
+### Reagents
 
 ```python
 from biocompute import red_dye, green_dye, blue_dye, water
 ```
 
-## Example: Colour Sweep
+---
 
-Use any Python library to generate parameters. The system just sees wells and operations.
+## Because it's just Python
+
+Use numpy. Use scipy. Use whatever. The system only sees wells and operations.
+
+### Colour sweep
 
 ```python
 import numpy as np
@@ -95,9 +99,9 @@ def experiment():
         well.image()
 ```
 
-## Example: Closed-Loop Optimisation
+### Closed-loop optimisation
 
-Because experiments are just Python, you can run a closed loop from a single script - submit an experiment, read the results, and use them to parameterise the next one.
+Submit an experiment, read results, use them to parameterise the next one.
 
 ```python
 import numpy as np
@@ -106,7 +110,6 @@ from scipy.optimize import minimize_scalar
 from biocompute import Client, wells, red_dye, green_dye
 
 with Client() as client:
-    # Experiment 1: sweep red dye volumes
     volumes = np.linspace(10, 100, 8)
 
     def experiment_sweep():
@@ -118,11 +121,9 @@ with Client() as client:
 
     result = client.submit(experiment_sweep)
 
-    # Fit a curve to the scores and find the minimum
     model = interp1d(volumes, result.result_data["scores"], kind="cubic")
     optimum = minimize_scalar(model, bounds=(10, 100), method="bounded").x
 
-    # Experiment 2: refine around the optimum
     def experiment_refine():
         for well, v in zip(wells(count=5), np.linspace(optimum - 10, optimum + 10, 5)):
             well.fill(vol=v, reagent=red_dye)
@@ -132,7 +133,3 @@ with Client() as client:
 
     final = client.submit(experiment_refine)
 ```
-
-## License
-
-MIT
