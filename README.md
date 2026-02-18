@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/logo_dark.svg">
-  <img alt="biocompute" src="assets/logo_light.png" width="50%">
+  <img alt="biocompute" src="assets/logo_light.svg" width="50%">
 </picture>
 
 <br>
