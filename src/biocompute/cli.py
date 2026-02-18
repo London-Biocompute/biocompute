@@ -208,6 +208,7 @@ def _poll_with_status(client: Client, job_id: str, experiment_name: str) -> Subm
                 name_styled = click.style(experiment_name, fg="blue", bold=True)
                 results_cmd = click.style(f"biocompute show {job_id}", fg="green", bold=True)
                 click.echo(f"  {check} {name_styled} completed. View results: {results_cmd}")
+                _print_well_images(result)
 
             return result
 
@@ -218,6 +219,16 @@ def _poll_with_status(client: Client, job_id: str, experiment_name: str) -> Subm
         spinner_idx = (spinner_idx + 1) % len(spinner_chars)
 
         time.sleep(delay)
+
+
+def _print_well_images(result: SubmissionResult) -> None:
+    """Save well images to disk and print their paths."""
+    images = result.well_images
+    if not images:
+        return
+    click.echo(f"  Saved {len(images)} well image(s):")
+    for well_label, path in sorted(images.items()):
+        click.echo(f"    {well_label}: {path}")
 
 
 @cli.command()
@@ -287,6 +298,8 @@ def show(job_id: str, follow: bool) -> None:
             status = job.get("status", "unknown")
             if status in ("complete", "failed"):
                 click.echo(f"Job already {status}.")
+                if status == "complete":
+                    _print_well_images(SubmissionResult.from_job_data(job))
             else:
                 job_name = job_id[:8]
                 _poll_with_status(client, job_id, job_name)
@@ -294,6 +307,9 @@ def show(job_id: str, follow: bool) -> None:
 
         for key, value in job.items():
             click.echo(f"  {key}: {value}")
+
+        if job.get("status") == "complete":
+            _print_well_images(SubmissionResult.from_job_data(job))
     except BiocomputeError as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)

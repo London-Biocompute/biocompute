@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/logo_dark.svg">
-  <img alt="biocompute" src="assets/logo_light.svg" width="50%">
+  <img alt="biocompute" src="assets/logo_light.png" width="50%">
 </picture>
 
 <br>
@@ -15,7 +15,7 @@ Wet lab automation as Python code. Maintained by [london biocompute](https://lon
 
 </div>
 
-**biocompute** is a framework that lets you write wet lab experiments as plain Python. Define your protocol with calls like `well.fill()`, `well.mix()`, and `well.image()`. Then execute on real lab hardware that handles the liquid dispensing, mixing, and imaging automatically. No drag-and-drop GUIs, no vendor lock-in, no manual pipetting.
+**biocompute** is a framework that lets you write wet lab experiments as plain Python. Define your protocol with calls like `well.fill()`, `well.mix()`, and `well.image()`. Then execute on real lab hardware that handles the liquid dispensing, mixing, and imaging automatically. No drag-and-drop GUIs, no manual pipetting.
 
 If you know Python, you can run wet lab experiments.
 
@@ -45,13 +45,22 @@ def experiment():
         well.image()
 ```
 
-Submit the experiment to the job server.
+Visualize the experiment in your terminal.
 
 ```bash
+biocompute visualize super_simple_experiment.py
+```
+
+To run experiments on real hardware, log in and submit.
+
+```bash
+biocompute login
 biocompute submit super_simple_experiment.py --follow
 ```
 
-And that's it. Results stream back to your terminal as experiments finish executing on the physical hardware.
+Results stream back to your terminal as experiments finish executing on the physical hardware.
+
+> **Note:** Hardware access is currently limited. Run `biocompute login` to join the waitlist.
 
 ---
 
