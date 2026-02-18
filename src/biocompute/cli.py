@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import click
+import httpx
 
 from biocompute.client import (
     CONFIG_FILE,
@@ -21,12 +22,27 @@ from biocompute.exceptions import BiocomputeError
 from biocompute.visualize import render_cli
 
 
+def _subscribe(email: str) -> None:
+    """Post email to the waitlist endpoint."""
+    resp = httpx.post(f"{DEFAULT_BASE_URL}/api/v1/subscribe", json={"email": email, "source": "cli"})
+    if resp.status_code in (200, 201):
+        click.echo("You're on the list. We'll email you when access is available.")
+    elif resp.status_code == 400:
+        click.echo("You're already on the list.")
+    else:
+        click.echo("Something went wrong. Try again later.", err=True)
+
+
 def _get_client() -> Client:
     """Create a Client from stored config."""
     try:
         return Client()
     except BiocomputeError:
-        click.echo("Not configured. Run `biocompute login` first.", err=True)
+        click.echo("Not logged in.", err=True)
+        click.echo("Hardware access is currently limited.", err=True)
+        if click.confirm("Want to be notified when access is available?"):
+            email = click.prompt("Email")
+            _subscribe(email)
         sys.exit(1)
 
 
@@ -37,9 +53,19 @@ def cli() -> None:
 
 @cli.command()
 def login() -> None:
-    """Configure API key."""
-    api_key = click.prompt("API key")
+    """Log in with an API key or join the waitlist."""
+    click.echo()
+    click.echo("[1] Log in with API key")
+    click.echo("[2] Join the waitlist")
+    click.echo()
+    choice = click.prompt("Select", type=click.Choice(["1", "2"]), show_choices=False)
 
+    if choice == "2":
+        email = click.prompt("Email")
+        _subscribe(email)
+        return
+
+    api_key = click.prompt("API key")
     click.echo("Verifying credentials...")
     try:
         client = Client(api_key=api_key, base_url=DEFAULT_BASE_URL)
@@ -47,6 +73,9 @@ def login() -> None:
         client.close()
     except BiocomputeError as e:
         click.echo(f"Login failed: {e}", err=True)
+        if click.confirm("Want to join the waitlist instead?"):
+            email = click.prompt("Email")
+            _subscribe(email)
         sys.exit(1)
 
     save_config({"api_key": api_key, "base_url": DEFAULT_BASE_URL})
@@ -179,6 +208,7 @@ def _poll_with_status(client: Client, job_id: str, experiment_name: str) -> Subm
                 name_styled = click.style(experiment_name, fg="blue", bold=True)
                 results_cmd = click.style(f"biocompute show {job_id}", fg="green", bold=True)
                 click.echo(f"  {check} {name_styled} completed. View results: {results_cmd}")
+                _print_well_images(result)
 
             return result
 
@@ -189,6 +219,16 @@ def _poll_with_status(client: Client, job_id: str, experiment_name: str) -> Subm
         spinner_idx = (spinner_idx + 1) % len(spinner_chars)
 
         time.sleep(delay)
+
+
+def _print_well_images(result: SubmissionResult) -> None:
+    """Save well images to disk and print their paths."""
+    images = result.well_images
+    if not images:
+        return
+    click.echo(f"  Saved {len(images)} well image(s):")
+    for well_label, path in sorted(images.items()):
+        click.echo(f"    {well_label}: {path}")
 
 
 @cli.command()
@@ -258,6 +298,8 @@ def show(job_id: str, follow: bool) -> None:
             status = job.get("status", "unknown")
             if status in ("complete", "failed"):
                 click.echo(f"Job already {status}.")
+                if status == "complete":
+                    _print_well_images(SubmissionResult.from_job_data(job))
             else:
                 job_name = job_id[:8]
                 _poll_with_status(client, job_id, job_name)
@@ -265,6 +307,9 @@ def show(job_id: str, follow: bool) -> None:
 
         for key, value in job.items():
             click.echo(f"  {key}: {value}")
+
+        if job.get("status") == "complete":
+            _print_well_images(SubmissionResult.from_job_data(job))
     except BiocomputeError as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)

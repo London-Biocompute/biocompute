@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "biocompute"
-version = "0.1.0"
-description = "London Biocompute client library"
+version = "0.1.4"
+description = "Wet lab automation as Python code"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -30,10 +30,12 @@ biocompute = "biocompute.cli:cli"
 
 [dependency-groups]
 dev = [
+    "build>=1.0",
     "mypy>=1.18",
     "pytest>=9.0",
     "pytest-httpx>=0.35",
     "ruff>=0.14",
+    "twine>=6.0",
 ]
 
 [tool.mypy]

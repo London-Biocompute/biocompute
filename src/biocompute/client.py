@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import os
 import time
 from collections import defaultdict
@@ -16,7 +17,8 @@ from biocompute.ops import op_to_dict
 from biocompute.trace import TracedOp, collect_trace
 
 CONFIG_FILE = Path.home() / ".biocompute" / "config.toml"
-DEFAULT_BASE_URL = os.environ.get("LBC_BASE_URL", "https://lbc.fly.dev")
+IMAGES_DIR = Path.home() / ".biocompute" / "images"
+DEFAULT_BASE_URL = os.environ.get("BIOCOMPUTE_BASE_URL", "https://biocompute-job-server.fly.dev")
 
 
 def save_config(config: dict[str, str]) -> None:
@@ -41,6 +43,13 @@ def _load_config() -> dict[str, str]:
     return config
 
 
+def _decode_data_uri(data_uri: str) -> bytes:
+    """Strip a data:image/png;base64,... prefix and return raw bytes."""
+    if "," in data_uri:
+        data_uri = data_uri.split(",", 1)[1]
+    return base64.b64decode(data_uri)
+
+
 @dataclass
 class SubmissionResult:
     """Result of a protocol submission."""
@@ -50,6 +59,7 @@ class SubmissionResult:
     result_data: dict[str, Any] | list[Any] | None = None
     error: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
+    _well_image_paths: dict[str, Path] | None = field(default=None, repr=False)
 
     @classmethod
     def from_job_data(cls, data: dict[str, Any]) -> SubmissionResult:
@@ -62,12 +72,31 @@ class SubmissionResult:
         )
 
     @property
-    def well_images(self) -> dict[str, str]:
-        """Well label -> base64 data URI image, from a successful result."""
-        if isinstance(self.result_data, dict):
-            images: dict[str, str] = self.result_data.get("well_images", {})
-            return images
-        return {}
+    def well_images(self) -> dict[str, Path]:
+        """Well label -> PNG file path, saved to ~/.biocompute/images/{job_id}/."""
+        if self._well_image_paths is not None:
+            return self._well_image_paths
+
+        if not isinstance(self.result_data, dict):
+            self._well_image_paths = {}
+            return self._well_image_paths
+
+        raw_images: dict[str, str] = self.result_data.get("well_images", {})
+        if not raw_images:
+            self._well_image_paths = {}
+            return self._well_image_paths
+
+        job_dir = IMAGES_DIR / self.job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        paths: dict[str, Path] = {}
+        for well_label, data_uri in raw_images.items():
+            png_path = job_dir / f"{well_label}.png"
+            png_path.write_bytes(_decode_data_uri(data_uri))
+            paths[well_label] = png_path
+
+        self._well_image_paths = paths
+        return self._well_image_paths
 
     @property
     def duration_seconds(self) -> float:
