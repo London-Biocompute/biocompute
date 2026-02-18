@@ -4,9 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "biocompute"
-version = "0.1.3"
+version = "0.1.4"
 description = "Wet lab automation as Python code"
-readme = "README.pypi.md"
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
