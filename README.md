@@ -34,11 +34,11 @@ pip install biocompute
 Create a file called `super_simple_experiment.py` and copy the code snippet.
 
 ```python
-from biocompute import wells, red_dye, green_dye, blue_dye
+from biocompute import wells, green_dye, blue_dye
 
 def experiment():
     for well in wells(count=2):
-        well.fill(vol=80.0, reagent=red_dye)
+        well.fill(vol=80.0, reagent=green_dye)
         well.fill(vol=20.0, reagent=blue_dye)
         well.image()
 ```
