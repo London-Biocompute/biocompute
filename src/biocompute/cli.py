@@ -16,11 +16,21 @@ from biocompute.client import (
     DEFAULT_BASE_URL,
     Client,
     SubmissionResult,
-    _load_config,
     save_config,
 )
 from biocompute.exceptions import BiocomputeError
 from biocompute.visualize import render_cli
+
+
+def _subscribe(email: str) -> None:
+    """Post email to the waitlist endpoint."""
+    resp = httpx.post(f"{DEFAULT_BASE_URL}/api/v1/subscribe", json={"email": email, "source": "cli"})
+    if resp.status_code in (200, 201):
+        click.echo("You're on the list. We'll email you when access is available.")
+    elif resp.status_code == 400:
+        click.echo("You're already on the list.")
+    else:
+        click.echo("Something went wrong. Try again later.", err=True)
 
 
 def _get_client() -> Client:
@@ -28,7 +38,11 @@ def _get_client() -> Client:
     try:
         return Client()
     except BiocomputeError:
-        click.echo("Not logged in. Run 'biocompute login' first.", err=True)
+        click.echo("Not logged in.", err=True)
+        click.echo("Hardware access is currently limited.", err=True)
+        if click.confirm("Want to be notified when access is available?"):
+            email = click.prompt("Email")
+            _subscribe(email)
         sys.exit(1)
 
 
@@ -39,33 +53,16 @@ def cli() -> None:
 
 @cli.command()
 def login() -> None:
-    """Log in with an API key or register with email."""
-    config = _load_config()
-    if config.get("api_key"):
-        click.echo(f"Already logged in (API key: {config['api_key'][:8]}...).")
-        return
-
+    """Log in with an API key or join the waitlist."""
     click.echo()
     click.echo("[1] Log in with API key")
-    click.echo("[2] Register with email")
+    click.echo("[2] Join the waitlist")
     click.echo()
     choice = click.prompt("Select", type=click.Choice(["1", "2"]), show_choices=False)
 
     if choice == "2":
-        name = click.prompt("Name")
         email = click.prompt("Email")
-        click.echo("Registering...")
-        resp = httpx.post(
-            f"{DEFAULT_BASE_URL}/api/v1/register",
-            json={"email": email, "name": name},
-        )
-        if resp.status_code in (200, 201):
-            data = resp.json()
-            save_config({"api_key": data["api_key"], "base_url": DEFAULT_BASE_URL})
-            click.echo(f"Registered and logged in. Your API key: {data['api_key']}")
-        else:
-            click.echo(f"Registration failed: {resp.text}", err=True)
-            sys.exit(1)
+        _subscribe(email)
         return
 
     api_key = click.prompt("API key")
@@ -76,6 +73,9 @@ def login() -> None:
         client.close()
     except BiocomputeError as e:
         click.echo(f"Login failed: {e}", err=True)
+        if click.confirm("Want to join the waitlist instead?"):
+            email = click.prompt("Email")
+            _subscribe(email)
         sys.exit(1)
 
     save_config({"api_key": api_key, "base_url": DEFAULT_BASE_URL})
@@ -160,7 +160,7 @@ def submit(file: str, follow: bool) -> None:
                 failed = True
 
     except BiocomputeError as e:
-        click.echo(f"Job submission failed: {e}", err=True)
+        click.echo(f"\nError: {e}", err=True)
         sys.exit(1)
     finally:
         client.close()
