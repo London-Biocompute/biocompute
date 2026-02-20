@@ -16,6 +16,7 @@ from biocompute.client import (
     DEFAULT_BASE_URL,
     Client,
     SubmissionResult,
+    _load_config,
     save_config,
 )
 from biocompute.exceptions import BiocomputeError
@@ -39,6 +40,11 @@ def cli() -> None:
 @cli.command()
 def login() -> None:
     """Log in with an API key or register with email."""
+    config = _load_config()
+    if config.get("api_key"):
+        click.echo(f"Already logged in (API key: {config['api_key'][:8]}...).")
+        return
+
     click.echo()
     click.echo("[1] Log in with API key")
     click.echo("[2] Register with email")
@@ -154,7 +160,7 @@ def submit(file: str, follow: bool) -> None:
                 failed = True
 
     except BiocomputeError as e:
-        click.echo(f"\nError: {e}", err=True)
+        click.echo(f"Job submission failed: {e}", err=True)
         sys.exit(1)
     finally:
         client.close()
